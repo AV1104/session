@@ -20,17 +20,8 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
         router.push("/view/signup");
         setAuthenticated(false);
       } else {
-        // Validate session on auth state change
-        const isValidSession = await sessionManager.validateSession();
-        
-        if (isValidSession) {
-          setAuthenticated(true);
-          sessionManager.startSessionMonitoring();
-        } else {
-          sessionManager.stopSessionMonitoring();
-          router.push("/view/signup");
-          setAuthenticated(false);
-        }
+        setAuthenticated(true);
+        sessionManager.startSessionMonitoring();
       }
       setLoading(false);
     });

@@ -1,11 +1,7 @@
-"use client"
-
-import { useEffect, useState } from 'react'
-import { SessionManager } from '@/app/utils/sessionManager'
+import { useEffect } from 'react'
+import { SessionManager } from '../utils/sessionManager'
 
 export default function SessionStatus() {
-  const [timeLeft, setTimeLeft] = useState<number | null>(null)
-
   useEffect(() => {
     const interval = setInterval(() => {
       const userEmail = localStorage.getItem("otpUser")
