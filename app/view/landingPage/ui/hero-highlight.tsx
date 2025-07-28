@@ -1,7 +1,9 @@
 "use client";
-import { cn } from "../../../lib/utils";
 import { useMotionValue, motion, useMotionTemplate } from "motion/react";
 import React from "react";
+
+// Replace cn usage with direct className concatenation
+const cn = (...classes: (string | undefined)[]) => classes.filter(Boolean).join(' ');
 
 export const HeroHighlight = ({
   children,
