@@ -7,9 +7,8 @@ import { onAuthStateChanged, signOut } from "firebase/auth"
 import { auth, db } from "@/database/firebase"
 import { doc, getDoc } from "firebase/firestore"
 import { APP_ROUTES, NAV_ROUTES, FEATURE_ROUTES } from "../../../../routes/routes"
-import { getImageUrl } from "@/routes/imageroute";
-
-
+import { getImageUrl } from "@/routes/imageroute"
+import { SessionManager } from "@/app/utils/sessionManager"
 
 const Navigation = () => {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null)
@@ -93,14 +92,8 @@ const Navigation = () => {
   }
 
   const handleLogout = async () => {
-    try {
-      await signOut(auth)
-    } catch {}
-    
-    // Preserve user tokens by only removing auth-related items
-    localStorage.removeItem("otpUser")
-    localStorage.removeItem("username")
-    localStorage.removeItem("slug")
+    const sessionManager = SessionManager.getInstance()
+    await sessionManager.logout()
     
     setUserEmail("")
     setUsername("")

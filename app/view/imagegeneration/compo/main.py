@@ -38,8 +38,15 @@ app = FastAPI(title="SD-3.5 single-GPU")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://www.wildmindai.com", "https://api.wildmindai.com"],
-    allow_credentials=True, allow_methods=["*"], allow_headers=["*"],
+    allow_origins=[
+        "http://localhost:3000", 
+        "https://www.wildmindai.com", 
+        "https://api.wildmindai.com",
+        "https://session-ur7i.vercel.app"
+    ],
+    allow_credentials=True, 
+    allow_methods=["*"], 
+    allow_headers=["*"],
 )
 
 app.mount("/images", StaticFiles(directory=OUT_DIR), name="images")

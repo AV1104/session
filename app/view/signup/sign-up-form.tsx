@@ -1,6 +1,6 @@
 "use client"
-import { useState } from "react"
-import { signInWithPopup, GoogleAuthProvider } from "firebase/auth"
+import { useState, useEffect } from "react"
+import { signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider } from "firebase/auth"
 import { auth, db } from "@/database/firebase"
 import { doc, setDoc, getDoc } from "firebase/firestore"
 import { useRouter } from "next/navigation"
@@ -24,60 +24,121 @@ export default function SignUpForm() {
   const handleGoogleSignUp = async () => {
     setIsLoading(true)
     try {
+      console.log("=== Starting Google sign-up ===")
       const provider = new GoogleAuthProvider()
-      const result = await signInWithPopup(auth, provider)
-      const user = result.user
-
-      if (user && user.email) {
-        // Check if user already exists
-        const userDocRef = doc(db, "users", user.email)
-        const userDoc = await getDoc(userDocRef)
-
-        const sessionId = generateSessionId()
-        
-        if (userDoc.exists()) {
-          // User exists, update session
-          await setDoc(userDocRef, {
-            currentSessionId: sessionId,
-            lastActivity: new Date().toISOString()
-          }, { merge: true })
-          
-          const userData = userDoc.data()
-          localStorage.setItem("otpUser", user.email)
-          localStorage.setItem("username", userData.username || user.displayName || "")
-          localStorage.setItem("slug", userData.slug || generateSlug(user.displayName || ""))
-          localStorage.setItem("sessionId", sessionId)
-          
-          router.push("/view/dashboard")
+      provider.addScope('email')
+      provider.addScope('profile')
+      
+      // Try popup first, fallback to redirect
+      try {
+        console.log("Trying popup...")
+        const result = await signInWithPopup(auth, provider)
+        await handleAuthResult(result)
+      } catch (popupError: any) {
+        console.log("Popup failed, trying redirect:", popupError.code)
+        if (popupError.code === 'auth/popup-blocked' || popupError.code === 'auth/popup-closed-by-user') {
+          console.log("Using redirect instead...")
+          await signInWithRedirect(auth, provider)
         } else {
-          // New user, create profile
-          const username = user.displayName || ""
-          const slug = generateSlug(username)
-          
-          await setDoc(userDocRef, {
-            email: user.email,
-            username: username,
-            slug: slug,
-            createdAt: new Date().toISOString(),
-            currentSessionId: sessionId,
-            lastActivity: new Date().toISOString()
-          })
-
-          localStorage.setItem("otpUser", user.email)
-          localStorage.setItem("username", username)
-          localStorage.setItem("slug", slug)
-          localStorage.setItem("sessionId", sessionId)
-          
-          router.push("/view/dashboard")
+          throw popupError
         }
       }
-    } catch (error: unknown) {
-      console.error("Google sign-up error:", error)
-      alert("Failed to sign up with Google. Please try again.")
-    } finally {
+      
+    } catch (error: any) {
+      console.error("=== Google sign-up error ===")
+      console.error("Error:", error)
       setIsLoading(false)
+      alert(`Sign-up failed: ${error.code} - ${error.message}`)
     }
   }
+
+  const handleAuthResult = async (result: any) => {
+    const user = result.user
+    console.log("Google sign-in successful:", user.email)
+    console.log("User auth token:", await user.getIdToken())
+
+    if (user && user.email) {
+      try {
+        const userDocRef = doc(db, "users", user.email)
+        const userDoc = await getDoc(userDocRef)
+        const sessionId = generateSessionId()
+        
+        console.log("About to write to Firestore...")
+        
+        if (userDoc.exists()) {
+          await setDoc(userDocRef, {
+            currentSessionId: sessionId,
+            lastActivity: new Date().toISOString(),
+            userId: user.uid,
+            deviceInfo: {
+              userAgent: navigator.userAgent,
+              timestamp: new Date().toISOString()
+            }
+          }, { merge: true })
+        } else {
+          await setDoc(userDocRef, {
+            email: user.email,
+            displayName: user.displayName,
+            currentSessionId: sessionId,
+            lastActivity: new Date().toISOString(),
+            userId: user.uid,
+            createdAt: new Date().toISOString(),
+            deviceInfo: {
+              userAgent: navigator.userAgent,
+              timestamp: new Date().toISOString()
+            }
+          })
+        }
+        
+        localStorage.setItem("sessionId", sessionId);
+        // Start session monitoring immediately
+        const sessionManager = SessionManager.getInstance();
+        sessionManager.startSessionMonitoring();
+        
+        router.push("/view/dashboard")
+      } catch (firestoreError) {
+        console.error("Firestore error:", firestoreError)
+        alert(`Database error: ${firestoreError.message}`)
+      }
+    }
+  }
+
+  useEffect(() => {
+    // Debug current domain
+    console.log("=== Domain Debug ===")
+    console.log("Current domain:", window.location.hostname)
+    console.log("Current origin:", window.location.origin)
+    console.log("Current href:", window.location.href)
+    
+    // Debug Firebase config
+    console.log("=== Firebase Config Debug ===")
+    console.log("API Key:", process.env.NEXT_PUBLIC_FIREBASE_API_KEY?.substring(0, 10) + "...")
+    console.log("Auth Domain:", process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN)
+    console.log("Project ID:", process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID)
+    console.log("Auth object:", auth)
+    console.log("Auth app:", auth.app)
+    
+    const handleRedirectResult = async () => {
+      try {
+        console.log("=== Checking redirect result ===")
+        const result = await getRedirectResult(auth)
+        console.log("Redirect result:", result)
+        
+        if (result && result.user) {
+          await handleAuthResult(result)
+        } else {
+          console.log("No redirect result found")
+        }
+      } catch (error: any) {
+        console.error("=== Redirect result error ===")
+        console.error("Error:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    handleRedirectResult()
+  }, [router])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">

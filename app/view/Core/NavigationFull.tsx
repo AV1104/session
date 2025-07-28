@@ -17,6 +17,7 @@ import AudioGeneration from "./feature-categories/AudioGeneration"
 import FilmingTools from "./feature-categories/FilmingTools"
 import ThreeDDesign from "./feature-categories/ThreeDDesign"
 import { useTokenUpdate } from "@/app/utils/tokenManager"
+import { SessionManager } from "@/app/utils/sessionManager"
 
 export default function NavigationFull() {
   const [isNavOpen, setIsNavOpen] = useState<boolean>(false)
@@ -58,13 +59,8 @@ export default function NavigationFull() {
   }, [])
 
   const handleLogout = async () => {
-    try {
-      await signOut(auth)
-    } catch { }
-
-    localStorage.removeItem("otpUser")
-    localStorage.removeItem("username")
-    localStorage.removeItem("slug")
+    const sessionManager = SessionManager.getInstance()
+    await sessionManager.logout()
 
     setUserEmail("")
     setUsername("")

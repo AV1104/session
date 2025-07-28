@@ -20,16 +20,17 @@ export class SessionManager {
   }
 
   async updateLastActivity(): Promise<void> {
-    const userEmail = localStorage.getItem("otpUser")
-    if (!userEmail) return
+    const user = auth.currentUser;
+    if (!user?.email) return;
 
     try {
-      const userRef = doc(db, "users", userEmail)
+      const userRef = doc(db, "users", user.email);
       await updateDoc(userRef, {
-        lastActivity: new Date().toISOString()
-      })
+        lastActivity: new Date().toISOString(),
+        userId: user.uid // Ensure userId matches auth.uid
+      });
     } catch (error) {
-      console.error("Error updating last activity:", error)
+      console.error("Error updating last activity:", error);
     }
   }
 
@@ -119,6 +120,20 @@ export class SessionManager {
       console.error("Error during force logout:", error)
     }
 
+    // Clear session in Firestore
+    const userEmail = localStorage.getItem("otpUser")
+    if (userEmail) {
+      try {
+        const userRef = doc(db, "users", userEmail)
+        await updateDoc(userRef, {
+          currentSessionId: null,
+          lastActivity: new Date().toISOString()
+        })
+      } catch (error) {
+        console.error("Error clearing session:", error)
+      }
+    }
+
     // Clear all session data
     localStorage.removeItem("otpUser")
     localStorage.removeItem("username")
@@ -140,7 +155,71 @@ export class SessionManager {
     await this.updateLastActivity()
     sessionStorage.removeItem('timeoutWarningShown')
   }
+
+  async logout(): Promise<void> {
+    const userEmail = localStorage.getItem("otpUser")
+    
+    try {
+      await signOut(auth)
+    } catch (error) {
+      console.error("Error during logout:", error)
+    }
+
+    // Clear session in Firestore
+    if (userEmail) {
+      try {
+        const userRef = doc(db, "users", userEmail)
+        await updateDoc(userRef, {
+          currentSessionId: null,
+          lastActivity: new Date().toISOString()
+        })
+      } catch (error) {
+        console.error("Error clearing session:", error)
+      }
+    }
+
+    // Clear local data
+    localStorage.removeItem("otpUser")
+    localStorage.removeItem("username")
+    localStorage.removeItem("slug")
+    localStorage.removeItem("sessionId")
+    sessionStorage.clear()
+    
+    this.stopSessionMonitoring()
+  }
+
+  private generateSessionId(): string {
+    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${navigator.userAgent.slice(0, 20)}`
+  }
+
+  async startNewSession(): Promise<void> {
+    const user = auth.currentUser;
+    if (!user?.email) return;
+
+    const sessionId = this.generateSessionId();
+    
+    try {
+      const userRef = doc(db, "users", user.email);
+      await updateDoc(userRef, {
+        currentSessionId: sessionId,
+        lastActivity: new Date().toISOString(),
+        userId: user.uid,
+        deviceInfo: {
+          userAgent: navigator.userAgent,
+          timestamp: new Date().toISOString()
+        }
+      });
+      
+      localStorage.setItem("sessionId", sessionId);
+      localStorage.setItem("otpUser", user.email);
+    } catch (error) {
+      console.error("Error starting new session:", error);
+    }
+  }
 }
+
+
+
 
 
 

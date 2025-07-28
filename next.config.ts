@@ -13,10 +13,13 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  // Allow access from local network
   experimental: {
     serverComponentsExternalPackages: ['firebase-admin'],
   },
+  // Production optimizations
+  compress: true,
+  poweredByHeader: false,
+  generateEtags: false,
 }
 
 module.exports = nextConfig
